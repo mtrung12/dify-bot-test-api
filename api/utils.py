@@ -3,20 +3,19 @@ from dotenv import load_dotenv
 import requests 
 import time
 
-
 load_dotenv()
 
-api_key = os.getenv("DIFY_API_KEY")
-api_url = os.getenv("DIFY_URL")
+api_url = "https://api.dify.ai/v1/chat-messages"
 
-def call_dify_api(conversation_id, query, agent_id):
+def call_dify_api(conversation_id, query, api_key):
+    if api_key is None:
+        raise ValueError("API key is missing for the request.")
     payload = {
         'query': query,  
         'inputs': {},  
         'response_mode': 'blocking',  
         'user': 'test_user',  
-        'conversation_id': conversation_id if conversation_id else None,  
-        'workflow_id': agent_id if agent_id else None,  
+        'conversation_id': conversation_id if conversation_id else "",  
     }
 
     headers = {
