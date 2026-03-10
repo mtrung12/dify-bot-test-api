@@ -13,6 +13,7 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 
 similarity_model = SentenceTransformer('dangvantuan/vietnamese-embedding')
 request_keys = {}
+request_status = {}  
 
 @api.post("/bot-test")
 async def start_test(background_tasks: BackgroundTasks, file: UploadFile = File(...), dify_api_key: str = Header(None)):
@@ -25,6 +26,8 @@ async def start_test(background_tasks: BackgroundTasks, file: UploadFile = File(
     with open(file_path, "wb") as f:
         f.write(await file.read())
     request_keys[request_id] = dify_api_key
+    
+    request_status[request_id] = "processing" 
     
     if background_tasks:
         background_tasks.add_task(process_file, request_id, file_path)
@@ -55,7 +58,7 @@ def process_file(request_id, file_path):
         df = pd.read_excel(file_path)
         bot_answers = []
         evaluations = []
-        scores = [] # New list to store similarity scores
+        scores = [] 
         
         dify_conversation_mapping = {}
         request_api_key = request_keys.get(request_id)
@@ -70,7 +73,7 @@ def process_file(request_id, file_path):
             if pd.isna(message) or str(message).strip() == "":
                 bot_answers.append("")
                 evaluations.append("")
-                scores.append(None) # Keep list lengths consistent
+                scores.append(None) 
                 continue
             
             if pd.notna(raw_conv_id) and str(raw_conv_id).strip() != "":
@@ -84,34 +87,30 @@ def process_file(request_id, file_path):
                 excel_conv_id = None
                 dify_conv_id = ""
                 
-            try:
-                answer, new_dify_conv_id = call_dify_api(dify_conv_id, message, request_api_key)
+            answer, new_dify_conv_id = call_dify_api(dify_conv_id, message, request_api_key)
                 
-                if excel_conv_id and excel_conv_id not in dify_conversation_mapping:
-                    dify_conversation_mapping[excel_conv_id] = new_dify_conv_id
+            if excel_conv_id and excel_conv_id not in dify_conversation_mapping:
+                dify_conversation_mapping[excel_conv_id] = new_dify_conv_id
                 
-                bot_answers.append(answer)
+            bot_answers.append(answer)
                 
-                # Unpack the tuple returned from evaluate_answer
-                evaluation, score = evaluate_answer(answer, expected_answer)
-                evaluations.append(evaluation)
-                scores.append(score)
+            evaluation, score = evaluate_answer(answer, expected_answer)
+            evaluations.append(evaluation)
+            scores.append(score)
                 
-            except Exception as e:
-                bot_answers.append(f"Error: {str(e)}")
-                evaluations.append("Lỗi API")
-                scores.append(None) # Append None if there was an API error
-
         df['bot_answer'] = bot_answers
         df['evaluation'] = evaluations
-        df['score'] = scores # Add the scores array as a new column
+        df['score'] = scores 
         
         result_path = os.path.join(RESULTS_DIR, f"{request_id}_result.xlsx")
         df.to_excel(result_path, index=False)
         print(f"Finished processing request {request_id}. Result saved.")
         
+        request_status[request_id] = "completed"  
+        
     except Exception as e:
         print(f"Failed to process {request_id}: {e}")
+        request_status[request_id] = "failed"  
 
 @api.get("/bot-test/{request_id}")
 async def get_test_result(request_id: str):
@@ -124,4 +123,8 @@ async def get_test_result(request_id: str):
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
     
-    return {"request_id": request_id, "status": "processing_or_failed", "message": "Result is not ready yet."}
+    status = request_status.get(request_id)
+    if status == "processing":
+        return {"request_id": request_id, "status": "processing", "message": "Result is not ready yet."}
+    else:
+        return {"request_id": request_id, "status": "failed", "message": "Processing failed."}
