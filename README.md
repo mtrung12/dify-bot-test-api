@@ -75,8 +75,7 @@ The input Excel file should contain the following columns:
 | :--- | :--- | :--- |
 | `message` | The query/input to send to the bot. | Yes |
 | `expected_answer` | The reference answer to compare against. | No (Evaluation will be "N/A") |
-| `conversation_id` | Unique ID to group messages into a conversation. | No |
-| `agent_id` | Reserved for future use. | No |
+| `conversation_id` | Unique ID to group messages into a conversation (not the same as conversation_id in dify). | No |
 
 ### Output Columns
 The generated result file will include all original columns plus:

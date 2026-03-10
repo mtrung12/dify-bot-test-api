@@ -14,6 +14,7 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 similarity_model = SentenceTransformer('dangvantuan/vietnamese-embedding')
 request_keys = {}
 request_status = {}  
+request_errors = {}  
 
 @api.post("/bot-test")
 async def start_test(background_tasks: BackgroundTasks, file: UploadFile = File(...), dify_api_key: str = Header(None)):
@@ -32,7 +33,7 @@ async def start_test(background_tasks: BackgroundTasks, file: UploadFile = File(
     if background_tasks:
         background_tasks.add_task(process_file, request_id, file_path)
         
-    return {"request_id": request_id, "message": "Test processing started in the background."}
+    return {"request_id": request_id, "message": "Test processing started."}
 
 def evaluate_answer(bot_answer, expected_answer):
     if pd.isna(expected_answer) or str(expected_answer).strip() == "":
@@ -65,7 +66,6 @@ def process_file(request_id, file_path):
         
         for index, row in df.iterrows():
             message = row.get('message')
-            agent_id = row.get('agent_id', None)
             expected_answer = row.get('expected_answer', None) 
             
             raw_conv_id = row.get('conversation_id')
@@ -111,6 +111,7 @@ def process_file(request_id, file_path):
     except Exception as e:
         print(f"Failed to process {request_id}: {e}")
         request_status[request_id] = "failed"  
+        request_errors[request_id] = str(e)
 
 @api.get("/bot-test/{request_id}")
 async def get_test_result(request_id: str):
@@ -127,4 +128,5 @@ async def get_test_result(request_id: str):
     if status == "processing":
         return {"request_id": request_id, "status": "processing", "message": "Result is not ready yet."}
     else:
-        return {"request_id": request_id, "status": "failed", "message": "Processing failed."}
+        error_msg = request_errors.get(request_id, "Processing failed.")
+        return {"request_id": request_id, "status": "failed", "message": f"Processing failed: {error_msg}"}
