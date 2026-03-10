@@ -3,3 +3,4 @@ pandas
 python-dotenv
 Requests
 sentence_transformers==5.2.3
+uvicorn
